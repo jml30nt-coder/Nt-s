@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Nt’s · Gráficas</title>
+<style>
+:root{--bg:#F4F5F7;--panel:#FFFFFF;--panel2:#EBEDF1;--ink:#0E1116;--muted:#5B6472;--line:#D9DDE3;--acento:#E5483D;--verde:#128A3D;--rojo:#C62828;--aviso:#A15C00;color-scheme:light}
+@media (prefers-color-scheme:dark){:root{--bg:#000;--panel:#0C0D10;--panel2:#17191E;--ink:#ECEFF3;--muted:#8D97A6;--line:#24272E;--acento:#FD5E53;--verde:#39D96F;--rojo:#FF5A5A;--aviso:#FFB547;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Avenir Next Condensed","Roboto Condensed","Arial Narrow",system-ui,sans-serif;line-height:1.4}
+main{max-width:720px;margin:0 auto;padding:calc(16px + env(safe-area-inset-top)) 14px 60px}
+h1{font-size:34px;line-height:1;margin:0;letter-spacing:-.02em}h1 span{color:var(--acento)}
+.ver{color:var(--muted);font-size:13px;margin:4px 0 12px}
+.tabs{display:flex;gap:6px;position:sticky;top:0;background:var(--bg);padding:8px 0;z-index:5}
+.tabs button{flex:1;border:0;border-radius:12px;padding:11px 4px;font:inherit;font-weight:800;font-size:15px;background:var(--panel2);color:var(--ink)}
+.tabs button.on{background:var(--acento);color:#fff}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px;margin:12px 0}
+.card h2{margin:0 0 6px;font-size:20px}
+.meta{color:var(--muted);font-size:14px;margin:4px 0}
+.btn{display:block;width:100%;border:0;border-radius:12px;padding:14px;font:inherit;font-size:18px;font-weight:800;cursor:pointer;text-align:center;margin-top:10px}
+.btn.prin{background:var(--acento);color:#fff}.btn.sec{background:var(--panel2);color:var(--ink)}
+.btn:disabled{opacity:.45}
+.selector{position:relative;overflow:hidden}
+.selector input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:200px}
+.barra{height:10px;background:var(--panel2);border-radius:6px;overflow:hidden;margin-top:10px}
+.barra>div{height:100%;width:0;background:var(--acento);transition:width .2s}
+.cifras{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px}
+.cifras div{font-size:13px;color:var(--muted)}.cifras b{display:block;font-size:24px;color:var(--ink)}
+.jug{border-top:1px solid var(--line);padding:10px 0}
+.jug .t{font-weight:800;font-size:15px;display:flex;justify-content:space-between;gap:8px}
+.bot{font-size:18px;font-weight:900;margin:2px 0}
+.v{color:var(--verde)}.r{color:var(--rojo)}
+.av{color:var(--aviso);font-size:13px}
+.minis{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:6px}
+.minis figure{margin:0}.minis img,.minis .vacia{width:100%;height:70px;object-fit:cover;border-radius:8px;background:var(--panel2);display:block}
+.minis .vacia{display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--muted)}
+.minis figcaption{font-size:11px;color:var(--muted);text-align:center}
+.aprox{border:2px solid var(--line);background:transparent;color:var(--muted);border-radius:10px;padding:4px 10px;font:inherit;font-weight:900;font-size:16px}
+.aprox.on{border-color:#FD5E53;background:#FD5E53;color:#fff}
+.res{font-weight:900}
+.resumen{font-size:17px;margin:6px 0}
+.big{font-size:30px;font-weight:900}
+#zoom{position:fixed;inset:0;background:rgba(0,0,0,.92);display:none;align-items:center;justify-content:center;z-index:50;padding:10px}
+#zoom img{max-width:100%;max-height:100%}
+input[type=file]{font-size:16px}
+</style></head><body><main>
+<h1>Nt’s <span>·</span> Gráficas</h1>
+<p class="ver">Base de gráficas y búsqueda de parecidas · versión 26 nov · 5</p>
+<div class="tabs"><button id="tAgregar" class="on">Agregar</button><button id="tBuscar">Buscar parecidas</button><button id="tBase">Base (<span id="nTab">0</span>)</button></div>
+
+<!-- ================= AGREGAR ================= -->
+<section id="sAgregar">
+<div class="card">
+  <h2>Agregar jugadas a la base</h2>
+  <p class="meta">De cada jugada elige sus 3 capturas: <b>Antes</b> (cierre del mercado anterior), <b>Inicio</b> (cuando abre el nuevo) y <b>Termina</b> (cuando cierra). Puedes elegir varias jugadas a la vez, de 30 a 50 capturas por tanda.</p>
+  <div class="btn prin selector">📷 Elegir capturas<input type="file" id="archivos" accept="image/*,.png,.jpg,.jpeg" multiple aria-label="Elegir capturas"></div>
+  <p class="meta" id="estado">Listo.</p>
+  <div class="barra"><div id="progreso"></div></div>
+  <div class="cifras"><div><b id="nCap">0</b>capturas</div><div><b id="nJug">0</b>jugadas completas</div><div><b id="nAv">0</b>con avisos</div></div>
+</div>
+</section>
+
+<!-- ================= BUSCAR ================= -->
+<section id="sBuscar" hidden>
+<div class="card">
+  <h2>Buscar gráficas parecidas</h2>
+  <p class="meta">Elige <b>2 capturas</b>: <b>Antes</b> e <b>Inicio</b> de la jugada que estás viendo. La app las compara con toda tu base y te dice cómo terminaron las más parecidas. Estas capturas no se guardan.</p>
+  <div class="btn prin selector">🔎 Elegir las 2 capturas<input type="file" id="consulta" accept="image/*,.png,.jpg,.jpeg" multiple aria-label="Elegir 2 capturas"></div>
+  <label class="meta" style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" id="soloCombo"> Solo jugadas con los mismos botones (izquierda, / \, derecha)</label>
+  <p class="meta" id="estadoB"></p>
+</div>
+<div id="resultadoB"></div>
+</section>
+
+<!-- ================= BASE ================= -->
+<section id="sBase" hidden>
+<div class="card">
+  <h2>Tu base de gráficas</h2>
+  <p class="meta">Toca <b>≈</b> en cada jugada para marcar si tú la jugaste con ≈. Tócala otra vez para quitarlo. Toca una imagen para verla en grande.</p>
+  <div id="lista"><p class="meta">Todavía no hay jugadas.</p></div>
+</div>
+<div class="card">
+  <h2>Respaldo</h2>
+  <p class="meta">El respaldo lleva los datos y la forma de cada gráfica, sin las imágenes (pesa poco). Mándamelo para analizar.</p>
+  <button class="btn prin" id="btnDescargar">⬇️ Descargar / compartir respaldo</button>
+  <button class="btn sec" id="btnCopiar">📋 Copiar respaldo como texto</button>
+  <div class="btn sec selector">📥 Cargar un respaldo<input type="file" id="cargar" accept=".json,application/json,text/plain" aria-label="Cargar respaldo"></div>
+  <p class="meta" id="estadoR"></p>
+</div>
+<div class="card">
+  <h2>Empezar de cero</h2>
+  <button class="btn sec" id="btnBorrar">🗑 Borrar la base de este teléfono</button>
+</div>
+</section>
+</main>
+<div id="zoom"><img alt="Gráfica ampliada"></div>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script>
+// ===== Núcleo de análisis (funciones puras sobre {data,width,height}) =====
+const NUCLEO = (() => {
+  const px = (im, x, y) => { const i = (y * im.width + x) * 4; return [im.data[i], im.data[i + 1], im.data[i + 2]]; };
+  const esNaranja = (r, g, b) => r > 200 && g > 115 && g < 190 && b < 95 && (r - b) > 120;
+  const esc = im => im.width / 1290;
+
+  // Centro (y) del ícono grande de BTC; sirve de ancla para todo lo demás
+  function ancla(im) {
+    const s = esc(im), x0 = Math.round(60 * s), x1 = Math.round(200 * s);
+    const filas = [];
+    for (let y = Math.round(150 * s); y < Math.min(im.height, Math.round(1300 * s)); y++) {
+      let n = 0;
+      for (let x = x0; x < x1; x++) { const [r, g, b] = px(im, x, y); if (r > 225 && g > 125 && g < 190 && b < 90) n++; }
+      filas.push(n >= 30 * s ? y : -1);
+    }
+    const grupos = []; let ini = -1, ult = -9;
+    for (const y of filas) { if (y < 0) continue; if (y - ult <= 8 * s) { ult = y; } else { if (ini >= 0) grupos.push([ini, ult]); ini = y; ult = y; } }
+    if (ini >= 0) grupos.push([ini, ult]);
+    const g = grupos.filter(([a, b]) => b - a >= 90 * s && b - a <= 150 * s);
+    if (!g.length) return null;
+    const [a, b] = g[g.length - 1];
+    return Math.round((a + b) / 2);
+  }
+
+  // Color de la flecha/monto junto a "Ahora"
+  function colorAhora(im, c) {
+    const s = esc(im); let rojo = 0, verde = 0;
+    for (let y = Math.round(c + 100 * s); y < Math.round(c + 170 * s); y++)
+      for (let x = Math.round(470 * s); x < Math.round(1000 * s); x++) {
+        const [r, g, b] = px(im, x, y);
+        if (r > 200 && g < 110 && b < 110) rojo++;
+        else if (g > 170 && r < 120 && b > 80) verde++;
+      }
+    if (rojo < 40 && verde < 40) return null;
+    return rojo > verde ? 'rojo' : 'verde';
+  }
+
+  // Línea naranja de la gráfica -> serie (0 = abajo, 1000 = arriba del área)
+  function grafica(im, c) {
+    const s = esc(im), y0 = Math.round(c + 330 * s), y1 = Math.min(im.height - 1, Math.round(c + 1130 * s)), xm = Math.round(1045 * s);
+    const tops = new Array(xm).fill(-1);
+    for (let x = 0; x < xm; x++)
+      for (let y = y0; y < y1; y++) { const [r, g, b] = px(im, x, y); if (esNaranja(r, g, b)) { tops[x] = y; break; } }
+    const cols = tops.map((v, i) => v >= 0 ? i : -1).filter(i => i >= 0);
+    if (cols.length < 100) return null;
+    const xa = cols[0], xb = cols[cols.length - 1] - Math.round(25 * s);
+    const ys = []; let con = 0;
+    for (let x = xa; x <= xb; x++) ys.push(tops[x]);
+    for (let i = 0; i < ys.length; i++) if (ys[i] >= 0) con++;
+    // rellenar huecos
+    let ultimo = ys.find(v => v >= 0);
+    for (let i = 0; i < ys.length; i++) { if (ys[i] < 0) ys[i] = ultimo; else ultimo = ys[i]; }
+    const H = y1 - y0, N = 120, serie = [];
+    for (let k = 0; k < N; k++) { const i = Math.round(k * (ys.length - 1) / (N - 1)); serie.push(Math.round((y1 - ys[i]) / H * 1000)); }
+    // línea de OBJETIVO: fila gris más brillante y larga
+    let mejor = null;
+    for (let y = y0; y < y1; y++) {
+      let n = 0, suma = 0;
+      for (let x = 0; x < Math.round(1000 * s); x += 2) {
+        const [r, g, b] = px(im, x, y);
+        if (Math.abs(r - g) < 14 && Math.abs(g - b) < 14 && r > 55 && r < 160) { n++; suma += r; }
+      }
+      if (n >= 120 * s) { const br = suma / n; if (!mejor || br > mejor.br + 3 || (Math.abs(br - mejor.br) <= 3 && n > mejor.n)) mejor = { y, br, n }; }
+    }
+    return { serie, cobertura: +(con / ys.length).toFixed(2), objetivo: mejor ? Math.round((y1 - mejor.y) / H * 1000) : null };
+  }
+
+  function movFinal(serie, frac = 0.13) {
+    const t = serie.slice(-Math.max(3, Math.round(serie.length * frac)));
+    const rng = Math.max(...serie) - Math.min(...serie) || 1;
+    return +((Math.max(...t) - Math.min(...t)) / rng * 100).toFixed(1);
+  }
+
+  // Rectángulos para leer texto
+  function zonas(im, c) {
+    const s = esc(im), H = im.height, R = (x0, y0, x1, y1) => ({ x: Math.round(x0), y: Math.round(y0), w: Math.round(x1 - x0), h: Math.round(y1 - y0) });
+    return {
+      encabezado: R(60 * s, c + 85 * s, 1070 * s, c + 270 * s),
+      restante: R(1010 * s, c - 55 * s, 1235 * s, c + 55 * s),
+      reloj: R(90 * s, 30 * s, 420 * s, 135 * s),
+      sube: R(150 * s, H - 300 * s, 560 * s, H - 205 * s),
+      baja: R(730 * s, H - 300 * s, 1140 * s, H - 205 * s),
+    };
+  }
+
+  // ---- Lectura de textos ----
+  const aNum = t => { // "60,989.60" o "60.989,60" -> número
+    t = t.replace(/\s/g, ''); const m = t.match(/^(\d{1,3})[.,](\d{3})[.,](\d{2})$/); return m ? +(m[1] + m[2] + '.' + m[3]) : null;
+  };
+  function leerEncabezado(txt) {
+    const t = (txt || '').replace(/[Oo](?=[\d,.]{2})/g, '0');
+    const mo = t.match(/Obj\w*\s+(\d{1,2})(?:\s*[:.]\s*(\d{2}))?\s*([AaPp])\.?\s*[Mm]/);
+    const montos = [...t.matchAll(/(\d{1,3}\s?[.,]\s?\d{3}\s?[.,]\s?\d{2})/g)].map(m => aNum(m[1])).filter(v => v && v > 5000);
+    return {
+      mercado: mo ? `${+mo[1]}:${mo[2] || '00'} ${mo[3].toUpperCase()}M` : null,
+      target: montos[0] ?? null, precio: montos[1] ?? null,
+    };
+  }
+  function leerHora(txt) { const m = (txt || '').replace(/[Oo]/g, '0').match(/(\d{1,2})\s*[:.]\s*(\d{2})/); return m ? `${+m[1]}:${m[2]}` : null; }
+  function leerMult(txt) { const m = (txt || '').replace(/[Oo]/g, '0').match(/(\d{1,3})\s*[.,]\s*(\d{2})/); if (!m) return null; const v = +(m[1] + '.' + m[2]); return v > 1 && v < 1000 ? v : null; }
+  const minDia = h => { if (!h) return null; const m = h.match(/(\d+):(\d+)\s*([AP])M/); if (!m) return null; let hh = +m[1] % 12; if (m[3] === 'P') hh += 12; return hh * 60 + +m[2]; };
+  const seg = r => { if (!r) return null; const [m, ss] = r.split(':').map(Number); return m * 60 + ss; };
+
+  // ---- Armar jugadas ----
+  function armar(caps) {
+    const L = caps.slice().sort((a, b) => a.orden - b.orden);
+    // Tipo por lo que muestra la pantalla (más seguro que leer el reloj del mercado)
+    const esApertura = c => c.sube && c.baja && c.sube < 50 && c.baja < 50 && c.target && c.precio && Math.abs(c.precio - c.target) < 30;
+    const esCierre = c => (c.sube || 0) > 100 || (c.baja || 0) > 100;
+    L.forEach(c => { const sg = seg(c.restante); c.tipo = esApertura(c) ? 'apertura' : esCierre(c) ? 'cierre' : sg == null ? 'desconocida' : sg >= 13 * 60 ? 'apertura' : sg <= 4 * 60 ? 'cierre' : 'intermedia'; });
+    const jugadas = [];
+    L.forEach((a, i) => {
+      if (a.tipo !== 'apertura') return;
+      const avisos = [];
+      let pre = null, fin = null;
+      for (let k = i - 1; k >= Math.max(0, i - 6); k--) { const c = L[k]; if (c.tipo === 'cierre' && c.mercado !== a.mercado) { pre = c; break; } }
+      for (let k = i + 1; k < Math.min(L.length, i + 8); k++) { const c = L[k]; if (c.tipo === 'apertura') break; if (c.tipo === 'cierre' && c.mercado === a.mercado) fin = c; }
+      if (!pre) avisos.push('Falta la captura Pre');
+      if (!fin) avisos.push('Falta la captura Final');
+      if (pre && minDia(a.mercado) != null && minDia(pre.mercado) != null && ((minDia(a.mercado) - minDia(pre.mercado) + 1440) % 1440) !== 15) avisos.push('Pre no es del mercado anterior');
+      if (!a.sube || !a.baja) avisos.push('No se leyeron los números (Sube/Baja)');
+      if (a.sube && a.baja) { const s = 1 / a.sube + 1 / a.baja; if (s < 0.95 || s > 1.15) avisos.push('Números Sube/Baja dudosos'); }
+      if (!a.color || (pre && !pre.color)) avisos.push('No se leyó el color de "Ahora"');
+      const tp = pre?.target, ta = a.target;
+      if (!tp || !ta) avisos.push('Falta un target');
+      const movT = tp && ta ? +((ta - tp) / tp * 100).toFixed(3) : null;
+      if (movT != null && Math.abs(movT) > 3) avisos.push('Targets dudosos');
+      const mf = a.grafica ? movFinal(a.grafica.serie) : null;
+      jugadas.push({
+        mercado: a.mercado, pre: pre?.archivo || null, ahora: a.archivo, final: fin?.archivo || null,
+        hora_pre: pre?.reloj || null, hora_ahora: a.reloj || null,
+        izquierda: pre?.color || null, tendencia: tp && ta ? (tp < ta ? '/' : '\\') : null, derecha: a.color || null,
+        verde: a.sube || null, rojo: a.baja || null,
+        target_pre: tp || null, target_ahora: ta || null, mov_target_pct: movT,
+        mov_final_ahora: mf, mov_final_pre: pre?.grafica ? movFinal(pre.grafica.serie) : null,
+        sugerencia_aprox: mf != null && movT != null ? (mf < 28 && Math.abs(movT) < 0.2) : null,
+        cierre_referencia: fin && fin.target && fin.precio ? (fin.precio > fin.target ? 'Altas' : 'Bajas') : null,
+        restante_final: fin?.restante || null,
+        avisos,
+      });
+    });
+    return jugadas;
+  }
+  return { ancla, colorAhora, grafica, movFinal, zonas, leerEncabezado, leerHora, leerMult, armar };
+})();
+
+
+// ===== Parecido entre gráficas (0 a 100) =====
+NUCLEO.parecido = (a, b) => {
+  if (!a || !b || a.length < 10 || b.length < 10) return null;
+  const norm = s => { const n = 60, t = []; for (let k = 0; k < n; k++) t.push(s[Math.round(k * (s.length - 1) / (n - 1))]); const m = t.reduce((x, y) => x + y, 0) / n; const sd = Math.sqrt(t.reduce((x, y) => x + (y - m) ** 2, 0) / n) || 1; return t.map(v => (v - m) / sd); };
+  const A = norm(a), B = norm(b), n = A.length;
+  let sab = 0; for (let i = 0; i < n; i++) sab += A[i] * B[i]; const r = sab / n;
+  const w = 8, D = Array.from({ length: n + 1 }, () => new Array(n + 1).fill(Infinity)); D[0][0] = 0;
+  for (let i = 1; i <= n; i++) for (let j = Math.max(1, i - w); j <= Math.min(n, i + w); j++) D[i][j] = Math.abs(A[i - 1] - B[j - 1]) + Math.min(D[i - 1][j], D[i][j - 1], D[i - 1][j - 1]);
+  const d = D[n][n] / n;
+  return Math.round(100 * (0.5 * Math.max(0, r) + 0.5 * Math.max(0, 1 - d / 1.2)));
+};
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+/* ---------- Almacén en el teléfono ---------- */
+let DB = null;
+const abrirDB = () => new Promise((ok, mal) => { const r = indexedDB.open('nts-lector', 2); r.onupgradeneeded = () => { const d = r.result; if (!d.objectStoreNames.contains('caps')) d.createObjectStore('caps', { keyPath: 'clave' }); if (!d.objectStoreNames.contains('marcas')) d.createObjectStore('marcas', { keyPath: 'id' }); }; r.onsuccess = () => ok(DB = r.result); r.onerror = () => mal(r.error || new Error('almacén bloqueado')); });
+const tx = (st, modo, fn) => !DB ? Promise.resolve(null) : new Promise((ok, mal) => { const t = DB.transaction(st, modo); fn(t.objectStore(st)); t.oncomplete = () => ok(true); t.onerror = () => mal(t.error); });
+const todas = st => !DB ? Promise.resolve([]) : new Promise((ok, mal) => { const r = DB.transaction(st).objectStore(st).getAll(); r.onsuccess = () => ok(r.result); r.onerror = () => mal(r.error); });
+let CAPS = [], MARCAS = {}, JUG = [];
+
+/* ---------- Lectura ---------- */
+let WORKER = null;
+async function lector(est) { if (WORKER) return WORKER; est.textContent = 'Preparando el lector de texto (la primera vez descarga ~10 MB)…'; WORKER = await Tesseract.createWorker('eng'); return WORKER; }
+function recorte(img, z) {
+  const c = document.createElement('canvas'); c.width = z.w; c.height = z.h;
+  const x = c.getContext('2d'); x.drawImage(img, z.x, z.y, z.w, z.h, 0, 0, z.w, z.h);
+  const d = x.getImageData(0, 0, z.w, z.h), p = d.data;
+  for (let i = 0; i < p.length; i += 4) { const v = 255 - Math.max(p[i], p[i + 1], p[i + 2]); const t = v < 160 ? 0 : 255; p[i] = p[i + 1] = p[i + 2] = t; }
+  x.putImageData(d, 0, 0); return c;
+}
+async function leer(w, cv, psm) { await w.setParameters({ tessedit_pageseg_mode: psm }); const { data } = await w.recognize(cv); return (data.text || '').trim(); }
+function miniatura(img, c) {
+  const s = img.width / 1290, y0 = Math.max(0, Math.round(c + 330 * s)), h = Math.round(800 * s), w = Math.round(1045 * s);
+  const cv = document.createElement('canvas'); cv.width = 420; cv.height = Math.round(420 * h / w);
+  cv.getContext('2d').drawImage(img, 0, y0, w, h, 0, 0, cv.width, cv.height);
+  return cv.toDataURL('image/jpeg', 0.72);
+}
+const ordenDe = f => { const m = f.name.match(/IMG[_-]?(\d+)/i) || f.name.match(/(\d{3,})/); return m ? +m[1] : null; };
+async function procesar(file, idx, est) {
+  const img = await createImageBitmap(file);
+  const cv = document.createElement('canvas'); cv.width = img.width; cv.height = img.height;
+  const cx = cv.getContext('2d', { willReadFrequently: true }); cx.drawImage(img, 0, 0);
+  const im = cx.getImageData(0, 0, img.width, img.height);
+  const cap = { clave: file.name, archivo: file.name, orden: ordenDe(file) ?? (file.lastModified / 1000), seleccion: idx };
+  const c = NUCLEO.ancla(im);
+  if (c == null) { cap.error = 'No parece una captura de BTC 15 min'; img.close && img.close(); return cap; }
+  cap.color = NUCLEO.colorAhora(im, c);
+  const g = NUCLEO.grafica(im, c); if (g) cap.grafica = g;
+  cap.mini = miniatura(img, c);
+  const z = NUCLEO.zonas(im, c), w = await lector(est);
+  const t = { enc: await leer(w, recorte(img, z.encabezado), '6'), rest: await leer(w, recorte(img, z.restante), '7'), reloj: await leer(w, recorte(img, z.reloj), '7'), sube: await leer(w, recorte(img, z.sube), '7'), baja: await leer(w, recorte(img, z.baja), '7') };
+  const e = NUCLEO.leerEncabezado(t.enc);
+  Object.assign(cap, { mercado: e.mercado, target: e.target, precio: e.precio, restante: NUCLEO.leerHora(t.rest), reloj: NUCLEO.leerHora(t.reloj), sube: NUCLEO.leerMult(t.sube), baja: NUCLEO.leerMult(t.baja), ocr: t });
+  img.close && img.close(); return cap;
+}
+
+/* ---------- Jugadas ---------- */
+const idJug = j => j.ahora;
+function armarTodo() {
+  JUG = NUCLEO.armar(CAPS.filter(c => !c.error));
+  const porArchivo = Object.fromEntries(CAPS.map(c => [c.archivo, c]));
+  JUG.forEach(j => { j.aprox_tuyo = MARCAS[idJug(j)] ?? null; j._pre = porArchivo[j.pre]; j._ahora = porArchivo[j.ahora]; j._final = porArchivo[j.final]; });
+}
+const col = c => c === 'verde' ? '<span class="v">Verde</span>' : c === 'rojo' ? '<span class="r">Rojo</span>' : '¿?';
+const resTxt = r => r === 'Altas' ? '<span class="res v">Altas</span>' : r === 'Bajas' ? '<span class="res r">Bajas</span>' : '<span class="meta">sin cierre</span>';
+const fig = (cap, nom) => `<figure>${cap && cap.mini ? `<img src="${cap.mini}" data-zoom alt="${nom}">` : '<div class="vacia">sin imagen</div>'}<figcaption>${nom}</figcaption></figure>`;
+function tarjeta(j, extra = '') {
+  return `<div class="jug"><div class="t"><span>${extra}Mercado ${esc(j.mercado || '¿?')} · ${esc(j.hora_ahora || j.hora_pre || '')}</span>
+    <button class="aprox ${j.aprox_tuyo ? 'on' : ''}" data-aprox="${esc(idJug(j))}" aria-pressed="${!!j.aprox_tuyo}">≈</button></div>
+    <div class="bot">${col(j.izquierda)} ${esc(j.tendencia || '¿?')}${j.aprox_tuyo ? ' ≈' : ''} ${col(j.derecha)} · ${j.verde ?? '¿?'} / ${j.rojo ?? '¿?'}</div>
+    <div class="meta">Terminó: ${resTxt(j.cierre_referencia)}</div>
+    <div class="minis">${fig(j._pre, 'Antes')}${fig(j._ahora, 'Inicio')}${fig(j._final, 'Termina')}</div>
+    ${j.avisos && j.avisos.length ? `<div class="av">⚠ ${esc(j.avisos.join(' · '))}</div>` : ''}</div>`;
+}
+let mostrar = 30;
+function pintar() {
+  armarTodo();
+  const completas = JUG.filter(j => j.cierre_referencia);
+  $('nCap').textContent = CAPS.length; $('nJug').textContent = completas.length; $('nAv').textContent = JUG.filter(j => j.avisos.length).length; $('nTab').textContent = completas.length;
+  const L = JUG.slice().sort((a, b) => (b._ahora?.orden || 0) - (a._ahora?.orden || 0));
+  $('lista').innerHTML = L.length ? L.slice(0, mostrar).map(j => tarjeta(j)).join('') + (L.length > mostrar ? `<button class="btn sec" id="verMas">Ver más (${L.length - mostrar})</button>` : '') : '<p class="meta">Todavía no hay jugadas.</p>';
+  if ($('verMas')) $('verMas').onclick = () => { mostrar += 30; pintar(); };
+}
+
+/* ---------- Pestañas ---------- */
+const tabs = { tAgregar: 'sAgregar', tBuscar: 'sBuscar', tBase: 'sBase' };
+Object.keys(tabs).forEach(t => $(t).onclick = () => { Object.entries(tabs).forEach(([b, s]) => { $(b).classList.toggle('on', b === t); $(s).hidden = b !== t; }); if (t === 'tBase') pintar(); });
+
+/* ---------- Agregar ---------- */
+$('archivos').onchange = async e => {
+  const fs = [...e.target.files]; e.target.value = '';
+  if (!fs.length) { $('estado').textContent = 'No llegó ninguna imagen.'; return; }
+  if (typeof Tesseract === 'undefined') { $('estado').textContent = '⚠ No cargó el lector de texto. Ábrela en Safari desde jml30nt-coder.github.io/Nt-s/lector.html, con internet.'; return; }
+  let lock = null; try { lock = await navigator.wakeLock?.request('screen'); } catch (_) {}
+  const ya = new Map(CAPS.map(c => [c.archivo, c]));
+  const nuevos = fs.filter(f => { const c = ya.get(f.name); return !c || !c.mini; });
+  $('estado').textContent = `✓ Recibí ${fs.length}. ${nuevos.length} por leer (${fs.length - nuevos.length} ya estaban). Mantén la app abierta…`;
+  const t0 = Date.now(); let hechos = 0;
+  for (const [i, f] of nuevos.entries()) {
+    try { const cap = await procesar(f, i, $('estado')); const viejas = CAPS.filter(c => c.archivo === cap.archivo && c.clave !== cap.clave); CAPS = CAPS.filter(c => c.archivo !== cap.archivo); CAPS.push(cap); await tx('caps', 'readwrite', st => { viejas.forEach(v => st.delete(v.clave)); st.put(cap); }); }
+    catch (err) { CAPS.push({ clave: f.name, archivo: f.name, error: 'No se pudo leer: ' + (err && err.message) }); }
+    hechos++;
+    const por = Math.round((Date.now() - t0) / hechos * (nuevos.length - hechos) / 1000);
+    $('progreso').style.width = (hechos / nuevos.length * 100) + '%';
+    $('estado').textContent = `Leyendo ${hechos} de ${nuevos.length}… faltan unos ${por > 90 ? Math.round(por / 60) + ' min' : por + ' s'}.`;
+    if (hechos % 6 === 0) pintar();
+  }
+  try { lock && lock.release(); } catch (_) {}
+  pintar();
+  $('estado').textContent = `✓ Listo. Tu base tiene ${JUG.filter(j => j.cierre_referencia).length} jugadas completas.`;
+};
+
+/* ---------- Buscar parecidas ---------- */
+$('consulta').onchange = async e => {
+  const fs = [...e.target.files]; e.target.value = '';
+  const est = $('estadoB'), out = $('resultadoB'); out.innerHTML = '';
+  if (fs.length !== 2) { est.textContent = `⚠ Elige exactamente 2 capturas (Antes e Inicio). Elegiste ${fs.length}.`; return; }
+  if (typeof Tesseract === 'undefined') { est.textContent = '⚠ No cargó el lector de texto. Ábrela en Safari con internet.'; return; }
+  est.textContent = 'Leyendo las 2 capturas…';
+  let caps;
+  try { caps = []; for (const [i, f] of fs.entries()) caps.push(await procesar(f, i, est)); }
+  catch (err) { est.textContent = '⚠ No se pudieron leer: ' + (err && err.message); return; }
+  if (caps.some(c => c.error)) { est.textContent = '⚠ ' + caps.find(c => c.error).error; return; }
+  const esIni = c => c.sube && c.baja && c.sube < 50 && c.baja < 50 && c.target && c.precio && Math.abs(c.precio - c.target) < 30;
+  let ini = caps.find(esIni), ant = caps.find(c => c !== ini);
+  if (!ini) { caps.sort((a, b) => a.orden - b.orden); [ant, ini] = caps; }
+  const q = {
+    izquierda: ant.color, derecha: ini.color, tendencia: ant.target && ini.target ? (ant.target < ini.target ? '/' : '\\') : null,
+    verde: ini.sube, rojo: ini.baja, mercado: ini.mercado, _pre: ant, _ahora: ini, sPre: ant.grafica?.serie, sIni: ini.grafica?.serie,
+  };
+  const soloCombo = $('soloCombo').checked;
+  const base = JUG.filter(j => j.cierre_referencia && j._pre?.grafica && j._ahora?.grafica);
+  if (!base.length) { est.textContent = '⚠ Tu base todavía no tiene jugadas completas para comparar.'; return; }
+  const misma = j => j.izquierda === q.izquierda && j.tendencia === q.tendencia && j.derecha === q.derecha;
+  const lista = base.filter(j => !soloCombo || misma(j)).map(j => {
+    const a = NUCLEO.parecido(q.sPre, j._pre.grafica.serie), b = NUCLEO.parecido(q.sIni, j._ahora.grafica.serie);
+    return { j, p: a == null || b == null ? 0 : Math.round((a + b) / 2) };
+  }).sort((x, y) => y.p - x.p);
+  const top = lista.slice(0, 10), alt = top.filter(x => x.j.cierre_referencia === 'Altas').length;
+  const combo = base.filter(misma), cAlt = combo.filter(j => j.cierre_referencia === 'Altas').length;
+  const muyParecidas = lista.filter(x => x.p >= 80), mAlt = muyParecidas.filter(x => x.j.cierre_referencia === 'Altas').length;
+  est.textContent = `✓ Comparada con ${base.length} jugadas de tu base.`;
+  out.innerHTML = `<div class="card"><h2>Tu jugada</h2>
+    <div class="bot">${col(q.izquierda)} ${esc(q.tendencia || '¿?')} ${col(q.derecha)} · ${q.verde ?? '¿?'} / ${q.rojo ?? '¿?'}</div>
+    <p class="meta">El ≈ lo decides tú. Mercado ${esc(q.mercado || '¿?')}.</p>
+    <div class="minis" style="grid-template-columns:repeat(2,1fr)">${fig(ant, 'Antes')}${fig(ini, 'Inicio')}</div></div>
+  <div class="card"><h2>Cómo terminaron las parecidas</h2>
+    <p class="resumen"><span class="big">${top.length ? Math.round(alt / top.length * 100) : 0}%</span> Altas en las ${top.length} más parecidas (${alt} Altas, ${top.length - alt} Bajas)</p>
+    <p class="meta">Muy parecidas (80% o más): ${muyParecidas.length ? `${mAlt} Altas, ${muyParecidas.length - mAlt} Bajas de ${muyParecidas.length}` : 'ninguna'}.</p>
+    <p class="meta">Mismos botones (${esc(q.izquierda || '¿?')} ${esc(q.tendencia || '')} ${esc(q.derecha || '¿?')}), cualquier gráfica: ${combo.length ? `${cAlt} Altas, ${combo.length - cAlt} Bajas de ${combo.length}` : 'ninguna'}.</p>
+    <p class="av">Con pocas jugadas parecidas, el % puede cambiar mucho. Entre más jugadas tenga tu base, más confiable.</p></div>
+  <div class="card"><h2>Las ${top.length} más parecidas</h2>${top.map(x => tarjeta(x.j, `<b>${x.p}%</b> · `)).join('')}</div>`;
+};
+
+/* ---------- Marcar ≈ y ampliar ---------- */
+document.addEventListener('click', async e => {
+  const b = e.target.closest('[data-aprox]');
+  if (b) { const id = b.dataset.aprox, nuevo = !MARCAS[id]; MARCAS[id] = nuevo; await tx('marcas', 'readwrite', st => st.put({ id, aprox: nuevo })); document.querySelectorAll(`[data-aprox="${CSS.escape(id)}"]`).forEach(x => { x.classList.toggle('on', nuevo); x.setAttribute('aria-pressed', nuevo); }); armarTodo(); return; }
+  const im = e.target.closest('img[data-zoom]');
+  if (im) { $('zoom').querySelector('img').src = im.src; $('zoom').style.display = 'flex'; return; }
+  if (e.target.closest('#zoom')) $('zoom').style.display = 'none';
+});
+
+/* ---------- Respaldo ---------- */
+function respaldo() {
+  armarTodo();
+  return JSON.stringify({
+    app: 'nts-lector', version: '26 nov · 5', creado: new Date().toISOString(),
+    capturas: CAPS.map(({ clave, mini, ...c }) => c),
+    jugadas: JUG.map(({ _pre, _ahora, _final, ...j }) => j),
+  });
+}
+$('btnDescargar').onclick = async () => {
+  const nombre = `nts-graficas-${new Date().toISOString().slice(0, 10)}.json`, f = new File([respaldo()], nombre, { type: 'application/json' });
+  try { if (navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f], title: nombre }); return; } } catch (err) { if (err && err.name === 'AbortError') return; }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(f); a.download = nombre; document.body.appendChild(a); a.click(); a.remove();
+};
+$('btnCopiar').onclick = async () => { try { await navigator.clipboard.writeText(respaldo()); $('estadoR').textContent = '✓ Copiado. Pégalo en el chat.'; } catch (_) { $('estadoR').textContent = 'No se pudo copiar; usa Descargar.'; } };
+$('cargar').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try {
+    const d = JSON.parse(await f.text()); if (d.app !== 'nts-lector' || !Array.isArray(d.capturas)) throw new Error('no es un respaldo de esta app');
+    const ya = new Set(CAPS.map(c => c.archivo)); let n = 0;
+    for (const c of d.capturas) { if (ya.has(c.archivo)) continue; const cap = { ...c, clave: c.archivo }; CAPS.push(cap); await tx('caps', 'readwrite', st => st.put(cap)); n++; }
+    for (const j of d.jugadas || []) if (j.aprox_tuyo != null && MARCAS[j.ahora] == null) { MARCAS[j.ahora] = j.aprox_tuyo; await tx('marcas', 'readwrite', st => st.put({ id: j.ahora, aprox: j.aprox_tuyo })); }
+    pintar(); $('estadoR').textContent = `✓ Se agregaron ${n} capturas (sin imágenes; si vuelves a elegir esas capturas se agregan sus imágenes).`;
+  } catch (err) { $('estadoR').textContent = '⚠ No se pudo cargar: ' + (err && err.message); }
+};
+$('btnBorrar').onclick = async () => {
+  if (!confirm('¿Borrar toda la base de gráficas de este teléfono? Tus capturas en Fotos no se tocan.')) return;
+  if (!confirm('Última confirmación: ¿borrar todo?')) return;
+  await tx('caps', 'readwrite', st => st.clear()); await tx('marcas', 'readwrite', st => st.clear());
+  CAPS = []; MARCAS = {}; pintar(); $('estadoR').textContent = 'Base borrada.';
+};
+
+/* ---------- Inicio ---------- */
+window.onerror = m => { $('estado').textContent = '⚠ Error: ' + m; };
+window.onunhandledrejection = e => { $('estado').textContent = '⚠ Error: ' + ((e && e.reason && e.reason.message) || 'desconocido'); };
+abrirDB().then(async () => { CAPS = await todas('caps'); (await todas('marcas')).forEach(m => MARCAS[m.id] = m.aprox); pintar(); if (CAPS.length) $('estado').textContent = `Tu base tiene ${JUG.filter(j => j.cierre_referencia).length} jugadas completas. Puedes agregar más.`; })
+  .catch(() => { $('estado').textContent = '⚠ Estás viendo la app dentro del chat de Claude. Ábrela en Safari desde jml30nt-coder.github.io/Nt-s/lector.html.'; });
+</script></body></html>
