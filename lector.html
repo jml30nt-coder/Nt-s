@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Nt’s · Lector de capturas</title>
+<style>
+:root{--bg:#F4F5F7;--panel:#FFFFFF;--panel2:#EBEDF1;--ink:#0E1116;--muted:#5B6472;--line:#D9DDE3;--acento:#E5483D;--verde:#128A3D;--rojo:#C62828;--aviso:#A15C00;color-scheme:light}
+@media (prefers-color-scheme:dark){:root{--bg:#000;--panel:#0C0D10;--panel2:#17191E;--ink:#ECEFF3;--muted:#8D97A6;--line:#24272E;--acento:#FD5E53;--verde:#39D96F;--rojo:#FF5A5A;--aviso:#FFB547;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Avenir Next Condensed","Roboto Condensed","Arial Narrow",system-ui,sans-serif;line-height:1.4}
+main{max-width:720px;margin:0 auto;padding:calc(18px + env(safe-area-inset-top)) 14px 60px}
+h1{font-size:34px;line-height:1;margin:0;letter-spacing:-.02em}h1 span{color:var(--acento)}
+.ver{color:var(--muted);font-size:13px;margin:4px 0 16px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px;margin:12px 0}
+.card h2{margin:0 0 6px;font-size:20px}
+.meta{color:var(--muted);font-size:14px;margin:4px 0}
+.btn{display:block;width:100%;border:0;border-radius:12px;padding:15px;font:inherit;font-size:18px;font-weight:800;cursor:pointer;text-align:center;margin-top:10px}
+.btn.prin{background:var(--acento);color:#fff}
+.btn.sec{background:var(--panel2);color:var(--ink)}
+.btn:disabled{opacity:.45}
+.barra{height:10px;background:var(--panel2);border-radius:6px;overflow:hidden;margin-top:10px}
+.barra>div{height:100%;width:0;background:var(--acento);transition:width .2s}
+.cifras{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px}
+.cifras div{font-size:13px;color:var(--muted)}.cifras b{display:block;font-size:24px;color:var(--ink)}
+.jug{border-top:1px solid var(--line);padding:9px 0;font-size:15px}
+.jug .t{font-weight:800}
+.jug .bot{font-size:17px;font-weight:900;margin:2px 0}
+.v{color:var(--verde)}.r{color:var(--rojo)}
+.av{color:var(--aviso);font-size:13px}
+.selector{position:relative;overflow:hidden}.selector input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:200px}
+a:focus-visible,.btn:focus-visible{outline:3px solid var(--acento);outline-offset:2px}
+</style></head><body><main>
+<h1>Nt’s <span>·</span> Lector</h1>
+<p class="ver">Lector de capturas · versión 26 nov · 3</p>
+
+<div class="card">
+  <h2>1. Elige tus capturas</h2>
+  <p class="meta">Puedes elegir muchas a la vez (Pre, Ahora y Final de cada jugada). Si eliges más después, se suman; las repetidas se saltan.</p>
+  <div class="btn prin selector">📷 Elegir capturas
+    <input type="file" id="archivos" accept="image/*,.png,.jpg,.jpeg,.heic" multiple aria-label="Elegir capturas">
+  </div>
+  <p class="meta">Consejo: elige de 30 a 50 por tanda. Con cientos a la vez, el iPhone puede tardar mucho en "Preparar" o quedarse trabado.</p>
+  <p class="meta" id="estado">Listo para empezar.</p>
+  <div class="barra"><div id="progreso"></div></div>
+  <div class="cifras">
+    <div><b id="nCap">0</b>capturas leídas</div>
+    <div><b id="nJug">0</b>jugadas armadas</div>
+    <div><b id="nAv">0</b>con avisos</div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>2. Respaldo para mandar</h2>
+  <p class="meta">Contiene los números, colores y la forma de cada gráfica, sin las imágenes, así que pesa muy poco.</p>
+  <button class="btn prin" id="btnDescargar" disabled>⬇️ Descargar / compartir respaldo</button>
+  <button class="btn sec" id="btnCopiar" disabled>📋 Copiar respaldo como texto</button>
+</div>
+
+<div class="card">
+  <h2>Jugadas encontradas</h2>
+  <p class="meta">Revisa que se vean bien. Las que dicen ⚠ tienen algo que no se pudo leer; igual van en el respaldo.</p>
+  <div id="lista"><p class="meta">Todavía no hay jugadas.</p></div>
+</div>
+
+<div class="card">
+  <h2>Empezar de cero</h2>
+  <button class="btn sec" id="btnBorrar">🗑 Borrar lo leído en este teléfono</button>
+</div>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script>
+// ===== Núcleo de análisis (funciones puras sobre {data,width,height}) =====
+const NUCLEO = (() => {
+  const px = (im, x, y) => { const i = (y * im.width + x) * 4; return [im.data[i], im.data[i + 1], im.data[i + 2]]; };
+  const esNaranja = (r, g, b) => r > 200 && g > 115 && g < 190 && b < 95 && (r - b) > 120;
+  const esc = im => im.width / 1290;
+
+  // Centro (y) del ícono grande de BTC; sirve de ancla para todo lo demás
+  function ancla(im) {
+    const s = esc(im), x0 = Math.round(60 * s), x1 = Math.round(200 * s);
+    const filas = [];
+    for (let y = Math.round(150 * s); y < Math.min(im.height, Math.round(1300 * s)); y++) {
+      let n = 0;
+      for (let x = x0; x < x1; x++) { const [r, g, b] = px(im, x, y); if (r > 225 && g > 125 && g < 190 && b < 90) n++; }
+      filas.push(n >= 30 * s ? y : -1);
+    }
+    const grupos = []; let ini = -1, ult = -9;
+    for (const y of filas) { if (y < 0) continue; if (y - ult <= 8 * s) { ult = y; } else { if (ini >= 0) grupos.push([ini, ult]); ini = y; ult = y; } }
+    if (ini >= 0) grupos.push([ini, ult]);
+    const g = grupos.filter(([a, b]) => b - a >= 90 * s && b - a <= 150 * s);
+    if (!g.length) return null;
+    const [a, b] = g[g.length - 1];
+    return Math.round((a + b) / 2);
+  }
+
+  // Color de la flecha/monto junto a "Ahora"
+  function colorAhora(im, c) {
+    const s = esc(im); let rojo = 0, verde = 0;
+    for (let y = Math.round(c + 100 * s); y < Math.round(c + 170 * s); y++)
+      for (let x = Math.round(470 * s); x < Math.round(1000 * s); x++) {
+        const [r, g, b] = px(im, x, y);
+        if (r > 200 && g < 110 && b < 110) rojo++;
+        else if (g > 170 && r < 120 && b > 80) verde++;
+      }
+    if (rojo < 40 && verde < 40) return null;
+    return rojo > verde ? 'rojo' : 'verde';
+  }
+
+  // Línea naranja de la gráfica -> serie (0 = abajo, 1000 = arriba del área)
+  function grafica(im, c) {
+    const s = esc(im), y0 = Math.round(c + 330 * s), y1 = Math.min(im.height - 1, Math.round(c + 1130 * s)), xm = Math.round(1045 * s);
+    const tops = new Array(xm).fill(-1);
+    for (let x = 0; x < xm; x++)
+      for (let y = y0; y < y1; y++) { const [r, g, b] = px(im, x, y); if (esNaranja(r, g, b)) { tops[x] = y; break; } }
+    const cols = tops.map((v, i) => v >= 0 ? i : -1).filter(i => i >= 0);
+    if (cols.length < 100) return null;
+    const xa = cols[0], xb = cols[cols.length - 1] - Math.round(25 * s);
+    const ys = []; let con = 0;
+    for (let x = xa; x <= xb; x++) ys.push(tops[x]);
+    for (let i = 0; i < ys.length; i++) if (ys[i] >= 0) con++;
+    // rellenar huecos
+    let ultimo = ys.find(v => v >= 0);
+    for (let i = 0; i < ys.length; i++) { if (ys[i] < 0) ys[i] = ultimo; else ultimo = ys[i]; }
+    const H = y1 - y0, N = 120, serie = [];
+    for (let k = 0; k < N; k++) { const i = Math.round(k * (ys.length - 1) / (N - 1)); serie.push(Math.round((y1 - ys[i]) / H * 1000)); }
+    // línea de OBJETIVO: fila gris más brillante y larga
+    let mejor = null;
+    for (let y = y0; y < y1; y++) {
+      let n = 0, suma = 0;
+      for (let x = 0; x < Math.round(1000 * s); x += 2) {
+        const [r, g, b] = px(im, x, y);
+        if (Math.abs(r - g) < 14 && Math.abs(g - b) < 14 && r > 55 && r < 160) { n++; suma += r; }
+      }
+      if (n >= 120 * s) { const br = suma / n; if (!mejor || br > mejor.br + 3 || (Math.abs(br - mejor.br) <= 3 && n > mejor.n)) mejor = { y, br, n }; }
+    }
+    return { serie, cobertura: +(con / ys.length).toFixed(2), objetivo: mejor ? Math.round((y1 - mejor.y) / H * 1000) : null };
+  }
+
+  function movFinal(serie, frac = 0.13) {
+    const t = serie.slice(-Math.max(3, Math.round(serie.length * frac)));
+    const rng = Math.max(...serie) - Math.min(...serie) || 1;
+    return +((Math.max(...t) - Math.min(...t)) / rng * 100).toFixed(1);
+  }
+
+  // Rectángulos para leer texto
+  function zonas(im, c) {
+    const s = esc(im), H = im.height, R = (x0, y0, x1, y1) => ({ x: Math.round(x0), y: Math.round(y0), w: Math.round(x1 - x0), h: Math.round(y1 - y0) });
+    return {
+      encabezado: R(60 * s, c + 85 * s, 1070 * s, c + 270 * s),
+      restante: R(1010 * s, c - 55 * s, 1235 * s, c + 55 * s),
+      reloj: R(90 * s, 30 * s, 420 * s, 135 * s),
+      sube: R(150 * s, H - 300 * s, 560 * s, H - 205 * s),
+      baja: R(730 * s, H - 300 * s, 1140 * s, H - 205 * s),
+    };
+  }
+
+  // ---- Lectura de textos ----
+  const aNum = t => { // "60,989.60" o "60.989,60" -> número
+    t = t.replace(/\s/g, ''); const m = t.match(/^(\d{1,3})[.,](\d{3})[.,](\d{2})$/); return m ? +(m[1] + m[2] + '.' + m[3]) : null;
+  };
+  function leerEncabezado(txt) {
+    const t = (txt || '').replace(/[Oo](?=[\d,.]{2})/g, '0');
+    const mo = t.match(/Obj\w*\s+(\d{1,2})(?:\s*[:.]\s*(\d{2}))?\s*([AaPp])\.?\s*[Mm]/);
+    const montos = [...t.matchAll(/(\d{1,3}\s?[.,]\s?\d{3}\s?[.,]\s?\d{2})/g)].map(m => aNum(m[1])).filter(v => v && v > 5000);
+    return {
+      mercado: mo ? `${+mo[1]}:${mo[2] || '00'} ${mo[3].toUpperCase()}M` : null,
+      target: montos[0] ?? null, precio: montos[1] ?? null,
+    };
+  }
+  function leerHora(txt) { const m = (txt || '').replace(/[Oo]/g, '0').match(/(\d{1,2})\s*[:.]\s*(\d{2})/); return m ? `${+m[1]}:${m[2]}` : null; }
+  function leerMult(txt) { const m = (txt || '').replace(/[Oo]/g, '0').match(/(\d{1,3})\s*[.,]\s*(\d{2})/); if (!m) return null; const v = +(m[1] + '.' + m[2]); return v > 1 && v < 1000 ? v : null; }
+  const minDia = h => { if (!h) return null; const m = h.match(/(\d+):(\d+)\s*([AP])M/); if (!m) return null; let hh = +m[1] % 12; if (m[3] === 'P') hh += 12; return hh * 60 + +m[2]; };
+  const seg = r => { if (!r) return null; const [m, ss] = r.split(':').map(Number); return m * 60 + ss; };
+
+  // ---- Armar jugadas ----
+  function armar(caps) {
+    const L = caps.slice().sort((a, b) => a.orden - b.orden);
+    L.forEach(c => { const sg = seg(c.restante); c.tipo = sg == null ? 'desconocida' : sg >= 13 * 60 ? 'apertura' : sg <= 4 * 60 ? 'cierre' : 'intermedia'; });
+    const jugadas = [];
+    L.forEach((a, i) => {
+      if (a.tipo !== 'apertura') return;
+      const avisos = [];
+      let pre = null, fin = null;
+      for (let k = i - 1; k >= Math.max(0, i - 6); k--) { const c = L[k]; if (c.tipo === 'cierre' && c.mercado !== a.mercado) { pre = c; break; } }
+      for (let k = i + 1; k < Math.min(L.length, i + 8); k++) { const c = L[k]; if (c.tipo === 'apertura') break; if (c.tipo === 'cierre' && c.mercado === a.mercado) fin = c; }
+      if (!pre) avisos.push('Falta la captura Pre');
+      if (!fin) avisos.push('Falta la captura Final');
+      if (pre && minDia(a.mercado) != null && minDia(pre.mercado) != null && ((minDia(a.mercado) - minDia(pre.mercado) + 1440) % 1440) !== 15) avisos.push('Pre no es del mercado anterior');
+      if (!a.sube || !a.baja) avisos.push('No se leyeron los números (Sube/Baja)');
+      if (a.sube && a.baja) { const s = 1 / a.sube + 1 / a.baja; if (s < 0.95 || s > 1.15) avisos.push('Números Sube/Baja dudosos'); }
+      if (!a.color || (pre && !pre.color)) avisos.push('No se leyó el color de "Ahora"');
+      const tp = pre?.target, ta = a.target;
+      if (!tp || !ta) avisos.push('Falta un target');
+      const movT = tp && ta ? +((ta - tp) / tp * 100).toFixed(3) : null;
+      if (movT != null && Math.abs(movT) > 3) avisos.push('Targets dudosos');
+      const mf = a.grafica ? movFinal(a.grafica.serie) : null;
+      jugadas.push({
+        mercado: a.mercado, pre: pre?.archivo || null, ahora: a.archivo, final: fin?.archivo || null,
+        hora_pre: pre?.reloj || null, hora_ahora: a.reloj || null,
+        izquierda: pre?.color || null, tendencia: tp && ta ? (tp < ta ? '/' : '\\') : null, derecha: a.color || null,
+        verde: a.sube || null, rojo: a.baja || null,
+        target_pre: tp || null, target_ahora: ta || null, mov_target_pct: movT,
+        mov_final_ahora: mf, mov_final_pre: pre?.grafica ? movFinal(pre.grafica.serie) : null,
+        sugerencia_aprox: mf != null && movT != null ? (mf < 28 && Math.abs(movT) < 0.2) : null,
+        cierre_referencia: fin && fin.target && fin.precio ? (fin.precio > fin.target ? 'Altas' : 'Bajas') : null,
+        restante_final: fin?.restante || null,
+        avisos,
+      });
+    });
+    return jugadas;
+  }
+  return { ancla, colorAhora, grafica, movFinal, zonas, leerEncabezado, leerHora, leerMult, armar };
+})();
+
+
+const $ = id => document.getElementById(id);
+/* ---------- Almacén en el teléfono (para no perder lo leído) ---------- */
+let DB;
+const abrirDB = () => new Promise((ok, mal) => { const r = indexedDB.open('nts-lector', 1); r.onupgradeneeded = () => r.result.createObjectStore('caps', { keyPath: 'clave' }); r.onsuccess = () => ok(DB = r.result); r.onerror = () => mal(r.error || new Error('almacén bloqueado')); });
+const tx = (modo, fn) => !DB ? Promise.resolve(null) : new Promise((ok, mal) => { const t = DB.transaction('caps', modo); const st = t.objectStore('caps'); const res = fn(st); t.oncomplete = () => ok(res && res.result); t.onerror = () => mal(t.error); });
+const todas = () => !DB ? Promise.resolve([]) : new Promise((ok, mal) => { const r = DB.transaction('caps').objectStore('caps').getAll(); r.onsuccess = () => ok(r.result); r.onerror = () => mal(r.error); });
+let CAPS = [];
+
+/* ---------- Lectura de texto ---------- */
+let WORKER = null;
+async function lector() {
+  if (WORKER) return WORKER;
+  $('estado').textContent = 'Preparando el lector de texto (la primera vez descarga ~10 MB)…';
+  WORKER = await Tesseract.createWorker('eng');
+  return WORKER;
+}
+function recorte(img, z, escala = 1) {
+  const c = document.createElement('canvas'); c.width = Math.round(z.w * escala); c.height = Math.round(z.h * escala);
+  const x = c.getContext('2d'); x.drawImage(img, z.x, z.y, z.w, z.h, 0, 0, c.width, c.height);
+  const d = x.getImageData(0, 0, c.width, c.height), p = d.data;
+  for (let i = 0; i < p.length; i += 4) { const v = 255 - Math.max(p[i], p[i + 1], p[i + 2]); const t = v < 160 ? 0 : 255; p[i] = p[i + 1] = p[i + 2] = t; }
+  x.putImageData(d, 0, 0); return c;
+}
+async function leer(w, canvas, psm) {
+  await w.setParameters({ tessedit_pageseg_mode: psm });
+  const { data } = await w.recognize(canvas); return (data.text || '').trim();
+}
+const ordenDe = f => { const m = f.name.match(/IMG[_-]?(\d+)/i) || f.name.match(/(\d{3,})/); return m ? +m[1] : null; };
+
+async function procesar(file, idx) {
+  const img = await createImageBitmap(file);
+  const cv = document.createElement('canvas'); cv.width = img.width; cv.height = img.height;
+  const cx = cv.getContext('2d', { willReadFrequently: true }); cx.drawImage(img, 0, 0);
+  const im = cx.getImageData(0, 0, img.width, img.height);
+  const cap = { clave: file.name + '|' + file.size, archivo: file.name, orden: ordenDe(file) ?? (file.lastModified / 1000), seleccion: idx };
+  const c = NUCLEO.ancla(im);
+  if (c == null) { cap.error = 'No parece una captura de BTC 15 min'; img.close && img.close(); return cap; }
+  cap.color = NUCLEO.colorAhora(im, c);
+  const g = NUCLEO.grafica(im, c);
+  if (g) cap.grafica = g; else cap.avisoGrafica = 'No se encontró la línea';
+  const z = NUCLEO.zonas(im, c), w = await lector();
+  const t = {
+    enc: await leer(w, recorte(img, z.encabezado), '6'),
+    rest: await leer(w, recorte(img, z.restante), '7'),
+    reloj: await leer(w, recorte(img, z.reloj), '7'),
+    sube: await leer(w, recorte(img, z.sube), '7'),
+    baja: await leer(w, recorte(img, z.baja), '7'),
+  };
+  const e = NUCLEO.leerEncabezado(t.enc);
+  Object.assign(cap, { mercado: e.mercado, target: e.target, precio: e.precio, restante: NUCLEO.leerHora(t.rest), reloj: NUCLEO.leerHora(t.reloj), sube: NUCLEO.leerMult(t.sube), baja: NUCLEO.leerMult(t.baja), ocr: t });
+  img.close && img.close();
+  return cap;
+}
+
+/* ---------- Pantalla ---------- */
+let JUG = [];
+function pintar() {
+  JUG = NUCLEO.armar(CAPS.filter(c => !c.error));
+  $('nCap').textContent = CAPS.length; $('nJug').textContent = JUG.length; $('nAv').textContent = JUG.filter(j => j.avisos.length).length;
+  $('btnDescargar').disabled = $('btnCopiar').disabled = !CAPS.length;
+  const col = c => c === 'verde' ? '<span class="v">Verde</span>' : c === 'rojo' ? '<span class="r">Rojo</span>' : '¿?';
+  $('lista').innerHTML = JUG.length ? JUG.slice().reverse().map(j => `<div class="jug">
+    <div class="t">Mercado ${j.mercado || '¿?'} · ${j.hora_pre || '¿?'} → ${j.hora_ahora || '¿?'}</div>
+    <div class="bot">${col(j.izquierda)} ${j.tendencia || '¿?'}${j.sugerencia_aprox ? ' ≈' : ''} ${col(j.derecha)} · ${j.verde ?? '¿?'} / ${j.rojo ?? '¿?'}</div>
+    <div class="meta">Target ${j.mov_target_pct != null ? (j.mov_target_pct > 0 ? '+' : '') + j.mov_target_pct + '%' : '¿?'} · movimiento final ${j.mov_final_ahora ?? '¿?'}% · ≈ sugerido: ${j.sugerencia_aprox == null ? '¿?' : j.sugerencia_aprox ? 'sí' : 'no'}${j.cierre_referencia ? ' · cierre: ' + j.cierre_referencia : ''}</div>
+    ${j.avisos.length ? `<div class="av">⚠ ${j.avisos.join(' · ')}</div>` : ''}</div>`).join('') : '<p class="meta">Todavía no hay jugadas.</p>';
+}
+function respaldo() {
+  return JSON.stringify({
+    app: 'nts-lector', version: '26 nov', creado: new Date().toISOString(),
+    regla_aprox: 'sugerido si mov_final_ahora < 28 y |mov_target_pct| < 0.2',
+    capturas: CAPS.map(({ clave, ...c }) => c),
+    jugadas: JUG,
+  });
+}
+$('archivos').onchange = async e => {
+  const fs = [...e.target.files]; e.target.value = '';
+  if (!fs.length) { $('estado').textContent = 'No llegó ninguna imagen. Intenta de nuevo, con menos capturas.'; return; }
+  $('estado').textContent = `✓ Recibí ${fs.length} capturas. Empezando…`;
+  if (typeof Tesseract === 'undefined') { $('estado').textContent = '⚠ No cargó el lector de texto. Abre la app en Safari desde jml30nt-coder.github.io/Nt-s/lector.html y con internet.'; return; }
+  let lock = null; try { lock = await navigator.wakeLock?.request('screen'); } catch (_) {}
+  const ya = new Set(CAPS.map(c => c.clave)), nuevos = fs.filter(f => !ya.has(f.name + '|' + f.size));
+  $('estado').textContent = `${nuevos.length} capturas nuevas (${fs.length - nuevos.length} repetidas saltadas). Mantén la app abierta…`;
+  const t0 = Date.now(); let hechos = 0;
+  for (const [i, f] of nuevos.entries()) {
+    try { const cap = await procesar(f, CAPS.length + i); CAPS.push(cap); await tx('readwrite', st => st.put(cap)); }
+    catch (err) { CAPS.push({ clave: f.name + '|' + f.size, archivo: f.name, error: 'No se pudo leer: ' + err.message }); }
+    hechos++;
+    const por = Math.round((Date.now() - t0) / hechos * (nuevos.length - hechos) / 1000);
+    $('progreso').style.width = (hechos / nuevos.length * 100) + '%';
+    $('estado').textContent = `Leyendo ${hechos} de ${nuevos.length}… faltan unos ${por > 90 ? Math.round(por / 60) + ' min' : por + ' s'}. Mantén la app abierta.`;
+    if (hechos % 5 === 0 || hechos === nuevos.length) pintar();
+  }
+  try { lock && lock.release(); } catch (_) {}
+  $('estado').textContent = `✓ Listo. ${nuevos.length} capturas leídas. Ya puedes descargar el respaldo.`;
+  pintar();
+};
+$('btnDescargar').onclick = async () => {
+  const texto = respaldo(), nombre = `nts-capturas-${new Date().toISOString().slice(0, 10)}.json`;
+  const f = new File([texto], nombre, { type: 'application/json' });
+  try { if (navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f], title: nombre }); return; } } catch (err) { if (err.name === 'AbortError') return; }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(f); a.download = nombre; document.body.appendChild(a); a.click(); a.remove();
+};
+$('btnCopiar').onclick = async () => {
+  try { await navigator.clipboard.writeText(respaldo()); $('estado').textContent = '✓ Respaldo copiado. Pégalo en el chat.'; }
+  catch (_) { $('estado').textContent = 'No se pudo copiar; usa Descargar.'; }
+};
+$('btnBorrar').onclick = async () => {
+  if (!confirm('¿Borrar todo lo leído en este teléfono? Tus capturas en Fotos no se tocan.')) return;
+  await tx('readwrite', st => st.clear()); CAPS = []; pintar(); $('estado').textContent = 'Borrado. Listo para empezar.'; $('progreso').style.width = '0';
+};
+window.onerror = (m) => { $('estado').textContent = '⚠ Error: ' + m; };
+window.onunhandledrejection = (e) => { $('estado').textContent = '⚠ Error: ' + ((e && e.reason && e.reason.message) || 'desconocido'); };
+if (typeof Tesseract === 'undefined') setTimeout(() => { if (typeof Tesseract === 'undefined') $('estado').textContent = '⚠ No cargó el lector de texto. Ábrela en Safari desde jml30nt-coder.github.io/Nt-s/lector.html, con internet.'; }, 4000);
+abrirDB().then(todas).then(l => { CAPS = l || []; pintar(); if (CAPS.length) $('estado').textContent = `${CAPS.length} capturas ya leídas en este teléfono. Puedes agregar más.`; }).catch(() => { DB = null; $('estado').textContent = '⚠ Estás viendo la app dentro del chat de Claude. Ahí no puede leer capturas: ábrela en Safari desde jml30nt-coder.github.io/Nt-s/lector.html.'; });
+</script></body></html>
